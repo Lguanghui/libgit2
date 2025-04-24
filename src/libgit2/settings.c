@@ -204,13 +204,13 @@ int git_libgit2_opts(int key, ...)
 		break;
 
 	case GIT_OPT_SET_SSL_CERT_LOCATIONS:
-#ifdef GIT_OPENSSL
+#if defined(GIT_HTTPS_OPENSSL) || defined(GIT_HTTPS_OPENSSL_DYNAMIC)
 		{
 			const char *file = va_arg(ap, const char *);
 			const char *path = va_arg(ap, const char *);
 			error = git_openssl__set_cert_location(file, path);
 		}
-#elif defined(GIT_MBEDTLS)
+#elif defined(GIT_HTTPS_MBEDTLS)
 		{
 			const char *file = va_arg(ap, const char *);
 			const char *path = va_arg(ap, const char *);
@@ -218,6 +218,18 @@ int git_libgit2_opts(int key, ...)
 		}
 #else
 		git_error_set(GIT_ERROR_SSL, "TLS backend doesn't support certificate locations");
+		error = -1;
+#endif
+		break;
+
+	case GIT_OPT_ADD_SSL_X509_CERT:
+#if defined(GIT_HTTPS_OPENSSL) || defined(GIT_HTTPS_OPENSSL_DYNAMIC)
+		{
+			X509 *cert = va_arg(ap, X509 *);
+			error = git_openssl__add_x509_cert(cert);
+		}
+#else
+		git_error_set(GIT_ERROR_SSL, "TLS backend doesn't support adding of the raw certs");
 		error = -1;
 #endif
 		break;
@@ -291,7 +303,9 @@ int git_libgit2_opts(int key, ...)
 		break;
 
 	case GIT_OPT_SET_SSL_CIPHERS:
-#if (GIT_OPENSSL || GIT_MBEDTLS)
+#if defined(GIT_HTTPS_OPENSSL) || \
+    defined(GIT_HTTPS_OPENSSL_DYNAMIC) || \
+    defined(GIT_HTTPS_MBEDTLS)
 		{
 			git__free(git__ssl_ciphers);
 			git__ssl_ciphers = git__strdup(va_arg(ap, const char *));
@@ -453,4 +467,27 @@ int git_libgit2_opts(int key, ...)
 	va_end(ap);
 
 	return error;
+}
+
+const char *git_libgit2_buildinfo(git_buildinfo_t key)
+{
+	switch (key) {
+
+#ifdef GIT_BUILD_CPU
+	case GIT_BUILDINFO_CPU:
+		return GIT_BUILD_CPU;
+		break;
+#endif
+
+#ifdef GIT_BUILD_COMMIT
+	case GIT_BUILDINFO_COMMIT:
+		return GIT_BUILD_COMMIT;
+		break;
+#endif
+
+	default:
+		break;
+	}
+
+	return NULL;
 }
